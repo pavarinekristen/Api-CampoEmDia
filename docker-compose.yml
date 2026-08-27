@@ -1,0 +1,53 @@
+# Ambiente local de desenvolvimento — replica o que o CI usa em testes de integração.
+# Nenhum serviço cloud real é necessário para rodar o backend localmente.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: campo-em-dia-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: campo_em_dia
+      POSTGRES_PASSWORD: campo_em_dia
+      POSTGRES_DB: campo_em_dia
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campo_em_dia"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: campo-em-dia-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Emulador local de object storage compatível com S3 (fotos, áudios, PDFs gerados)
+  minio:
+    image: minio/minio:latest
+    container_name: campo-em-dia-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: campo_em_dia
+      MINIO_ROOT_PASSWORD: campo_em_dia_secret
+    ports:
+      - "9000:9000" # API S3
+      - "9001:9001" # Console web
+    volumes:
+      - ./docker/minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

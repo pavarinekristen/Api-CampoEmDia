@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    // Desligado deliberadamente: a compilação incremental grava um
+    // .tsbuildinfo cujo cache fica inconsistente sempre que rootDir/exclude
+    // mudam entre builds, produzindo um dist/ parcial sem erro visível
+    // (arquivos "pulados" por tsc por engano). Builds deste tamanho são
+    // rápidos o bastante para não precisar de incremental.
+    "incremental": false
+  },
+  "exclude": ["node_modules", "test", "dist", "**/*.spec.ts"]
+}

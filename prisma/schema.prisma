@@ -1,0 +1,314 @@
+// Campo em Dia — schema inicial (MVP)
+//
+// Estratégia de multitenancy: banco único / schema único, discriminador `tenantId`
+// em toda tabela de negócio. Row-Level Security (RLS) é habilitada via migração
+// SQL adicional (ver prisma/migrations/xxx_enable_rls) como segunda camada de
+// isolamento, além do filtro aplicado na camada de aplicação (AsyncLocalStorage).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// IDENTITY & ACCESS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum TenantType {
+  AUTONOMO
+  EMPRESA
+}
+
+enum UserRole {
+  PROFISSIONAL_PROPRIETARIO
+  GESTOR_EQUIPE
+  TECNICO_CAMPO
+  SUPERVISOR_TECNICO
+  CONSULTOR_PARCEIRO
+}
+
+model Tenant {
+  id        String     @id @default(uuid())
+  type      TenantType
+  name      String
+  document  String?    // CPF/CNPJ, opcional no cadastro inicial
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  users      User[]
+  clients    Client[]
+  properties Property[]
+  visits     Visit[]
+  evidences  Evidence[]
+  tasks      TaskItem[]
+  reports    Report[]
+  charges    ServiceCharge[]
+  auditLogs  AuditLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name         String
+  email        String
+  passwordHash String
+  role         UserRole
+  active       Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visitsAsProfessional Visit[]    @relation("VisitProfessional")
+  tasksAssigned        TaskItem[] @relation("TaskAssignee")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CRM RURAL
+// ─────────────────────────────────────────────────────────────────────────
+
+model Client {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String
+  contact   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties Property[]
+  charges    ServiceCharge[]
+
+  @@index([tenantId])
+  @@map("clients")
+}
+
+model Property {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id])
+  name         String
+  location     String?
+  latitude     Float?
+  longitude    Float?
+  activities   String?  // atividades desenvolvidas na propriedade
+  frequency    String?  // frequência de acompanhamento combinada
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  visits Visit[]
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@map("properties")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// VISITS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum VisitType {
+  ACOMPANHAMENTO
+  EMERGENCIA
+  RETORNO
+  COLETA
+  VACINACAO
+  REPRODUCAO
+  AVALIACAO_PRODUTIVA
+  VISTORIA
+  CONSULTORIA
+}
+
+enum VisitStatus {
+  EM_ANDAMENTO
+  ENCERRADA
+  CANCELADA
+}
+
+model Visit {
+  id                String      @id @default(uuid())
+  // client_id gerado no dispositivo (offline-first) — chave de idempotência
+  // na sincronização, independente do id interno do banco.
+  clientGeneratedId String      @unique
+  tenantId          String
+  tenant            Tenant      @relation(fields: [tenantId], references: [id])
+  propertyId        String
+  property          Property    @relation(fields: [propertyId], references: [id])
+  professionalId    String
+  professional      User        @relation("VisitProfessional", fields: [professionalId], references: [id])
+  type              VisitType
+  status            VisitStatus @default(EM_ANDAMENTO)
+  startedAt         DateTime
+  endedAt           DateTime?
+  summary           String?
+  version           Int         @default(1) // optimistic concurrency para sync
+
+  evidences Evidence[]
+  tasks     TaskItem[]
+  report    Report?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@map("visits")
+}
+
+enum EvidenceType {
+  TEXTO
+  AUDIO
+  FOTO
+  VIDEO
+  DOCUMENTO
+}
+
+model Evidence {
+  id                String       @id @default(uuid())
+  clientGeneratedId String       @unique
+  tenantId          String       // denormalizado a partir de Visit — necessário para RLS direta nesta tabela
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  visitId           String
+  visit             Visit        @relation(fields: [visitId], references: [id])
+  type              EvidenceType
+  storageKey        String?      // chave no object storage (S3/MinIO)
+  mimeType          String?
+  sizeBytes         Int?
+  transcriptDraft    String?      // rascunho gerado por IA a partir de áudio
+  transcriptReviewed Boolean      @default(false) // confirmação humana obrigatória
+  note              String?
+  createdAt         DateTime     @default(now())
+
+  @@index([tenantId])
+  @@index([visitId])
+  @@map("evidences")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// TASKS / ORIENTAÇÕES
+// ─────────────────────────────────────────────────────────────────────────
+
+enum TaskPriority {
+  BAIXA
+  MEDIA
+  ALTA
+}
+
+enum TaskStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  ATRASADA
+  CANCELADA
+}
+
+model TaskItem {
+  id                String       @id @default(uuid())
+  clientGeneratedId String       @unique
+  tenantId          String
+  tenant            Tenant       @relation(fields: [tenantId], references: [id])
+  visitId           String
+  visit             Visit        @relation(fields: [visitId], references: [id])
+  description       String
+  assigneeId        String?
+  assignee          User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  dueDate           DateTime?
+  priority          TaskPriority @default(MEDIA)
+  status            TaskStatus   @default(PENDENTE)
+  requiresReturnVisit Boolean    @default(false)
+  evidenceExpected  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([visitId])
+  @@map("tasks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// REPORTS
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ReportStatus {
+  PENDENTE
+  PROCESSANDO
+  PRONTO
+  FALHOU
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  tenantId   String       // denormalizado a partir de Visit — necessário para RLS direta nesta tabela
+  tenant     Tenant       @relation(fields: [tenantId], references: [id])
+  visitId    String       @unique
+  visit      Visit        @relation(fields: [visitId], references: [id])
+  status     ReportStatus @default(PENDENTE)
+  storageKey String?      // PDF final no object storage
+  sharedUrl  String?      // link assinado usado no WhatsApp
+  generatedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@index([tenantId])
+
+  @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// BILLING — cobrança simples por serviço (MVP item 11, sem ERP financeiro)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ServiceChargeStatus {
+  PENDENTE
+  PAGO
+  CANCELADO
+}
+
+model ServiceCharge {
+  id          String              @id @default(uuid())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  clientId    String
+  client      Client              @relation(fields: [clientId], references: [id])
+  description String
+  amountCents Int
+  status      ServiceChargeStatus @default(PENDENTE)
+  dueDate     DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@map("service_charges")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AUDIT LOG — obrigatório para toda alteração relevante (MVP item 14)
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  entity     String   // ex: "Visit", "Property"
+  entityId   String
+  action     String   // ex: "CREATE", "UPDATE", "SYNC_CONFLICT_RESOLVED"
+  actorId    String?
+  diff       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, entity, entityId])
+  @@map("audit_logs")
+}
