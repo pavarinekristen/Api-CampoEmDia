@@ -1,7 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { USER_REPOSITORY, UserRepository } from '../../domain/repositories/user.repository';
+import { PasswordHasher } from '../../infrastructure/password-hasher.service';
 
 export interface LoginInput {
   email: string;
@@ -19,6 +19,7 @@ export class LoginUseCase {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     private readonly jwtService: JwtService,
+    private readonly passwordHasher: PasswordHasher,
   ) {}
 
   async execute(input: LoginInput): Promise<LoginOutput> {
@@ -27,7 +28,7 @@ export class LoginUseCase {
       throw new UnauthorizedException('Credenciais inválidas.');
     }
 
-    const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
+    const passwordMatches = await this.passwordHasher.compare(input.password, user.passwordHash);
     if (!passwordMatches) {
       throw new UnauthorizedException('Credenciais inválidas.');
     }

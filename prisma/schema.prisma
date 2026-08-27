@@ -83,6 +83,8 @@ model Client {
   name      String
   contact   String?
   notes     String?
+  version   Int      @default(1) // concorrência otimista em updates
+  deletedAt DateTime? // soft delete — nunca apagar histórico de verdade
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -105,6 +107,8 @@ model Property {
   longitude    Float?
   activities   String?  // atividades desenvolvidas na propriedade
   frequency    String?  // frequência de acompanhamento combinada
+  version      Int      @default(1) // concorrência otimista em updates
+  deletedAt    DateTime? // soft delete — nunca apagar histórico de verdade
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

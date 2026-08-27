@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
+import { paginationToSkipTake } from '../../../common/dto/paginated-result';
 import { User, UserRole } from '../domain/entities/user.entity';
 import { UserRepository } from '../domain/repositories/user.repository';
 
@@ -28,18 +29,7 @@ export class PrismaUserRepository implements UserRepository {
       FROM users WHERE email = ${email.toLowerCase().trim()} AND active = true LIMIT 1`;
 
     const row = rows[0];
-    if (!row) return null;
-
-    return Object.assign(
-      User.create({
-        tenantId: row.tenantId,
-        name: row.name,
-        email: row.email,
-        passwordHash: row.passwordHash,
-        role: row.role,
-      }),
-      { id: row.id },
-    );
+    return row ? User.fromPersistence(row) : null;
   }
 
   async create(user: User): Promise<User & { id: string }> {
@@ -69,6 +59,28 @@ export class PrismaUserRepository implements UserRepository {
           },
         }),
     );
-    return Object.assign(user, { id: created.id });
+    return User.fromPersistence(created);
+  }
+
+  async findById(id: string): Promise<(User & { id: string }) | null> {
+    const row = await this.prisma.user.findUnique({ where: { id } });
+    return row ? User.fromPersistence(row) : null;
+  }
+
+  async findAllByTenant(page: number, limit: number): Promise<{ items: Array<User & { id: string }>; total: number }> {
+    const { skip, take } = paginationToSkipTake(page, limit);
+    const [rows, total] = await Promise.all([
+      this.prisma.user.findMany({ skip, take, orderBy: { createdAt: 'asc' } }),
+      this.prisma.user.count(),
+    ]);
+    return { items: rows.map((row) => User.fromPersistence(row)), total };
+  }
+
+  async update(user: User & { id: string }): Promise<User & { id: string }> {
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { name: user.name, role: user.role, active: user.active },
+    });
+    return User.fromPersistence(updated);
   }
 }

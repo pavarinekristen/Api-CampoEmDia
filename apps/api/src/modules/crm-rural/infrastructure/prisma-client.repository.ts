@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
+import { paginationToSkipTake } from '../../../common/dto/paginated-result';
 import { Client } from '../domain/entities/client.entity';
-import { ClientRepository } from '../domain/repositories/client.repository';
+import { ClientRepository, UpdateClientPatch } from '../domain/repositories/client.repository';
 
 @Injectable()
 export class PrismaClientRepository implements ClientRepository {
@@ -19,26 +20,43 @@ export class PrismaClientRepository implements ClientRepository {
         notes: client.notes ?? undefined,
       },
     });
-    return Object.assign(client, { id: created.id });
+    return Client.fromPersistence(created);
   }
 
   async findById(id: string): Promise<(Client & { id: string }) | null> {
-    const row = await this.prisma.client.findUnique({ where: { id } });
-    if (!row) return null;
-    return Object.assign(
-      Client.create({ name: row.name, contact: row.contact ?? undefined, notes: row.notes ?? undefined }),
-      { id: row.id },
-    );
+    const row = await this.prisma.client.findFirst({ where: { id, deletedAt: null } });
+    return row ? Client.fromPersistence(row) : null;
   }
 
-  async findAll(): Promise<Array<Client & { id: string }>> {
-    tenantContext.getOrThrow(); // garante fail-fast se chamado fora de contexto
-    const rows = await this.prisma.client.findMany({ orderBy: { createdAt: 'desc' } });
-    return rows.map((row) =>
-      Object.assign(
-        Client.create({ name: row.name, contact: row.contact ?? undefined, notes: row.notes ?? undefined }),
-        { id: row.id },
-      ),
-    );
+  async findAllPaginated(page: number, limit: number): Promise<{ items: Array<Client & { id: string }>; total: number }> {
+    const { skip, take } = paginationToSkipTake(page, limit);
+    const where = { deletedAt: null };
+    const [rows, total] = await Promise.all([
+      this.prisma.client.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      this.prisma.client.count({ where }),
+    ]);
+    return { items: rows.map((row) => Client.fromPersistence(row)), total };
+  }
+
+  async update(
+    id: string,
+    patch: UpdateClientPatch,
+    expectedVersion?: number,
+  ): Promise<(Client & { id: string }) | 'CONFLICT'> {
+    const result = await this.prisma.client.updateMany({
+      where: { id, deletedAt: null, ...(expectedVersion !== undefined ? { version: expectedVersion } : {}) },
+      data: { ...patch, version: { increment: 1 } },
+    });
+
+    if (result.count === 0) {
+      return 'CONFLICT';
+    }
+
+    const updated = await this.prisma.client.findFirstOrThrow({ where: { id } });
+    return Client.fromPersistence(updated);
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.client.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }

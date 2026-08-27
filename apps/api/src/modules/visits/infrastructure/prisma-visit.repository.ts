@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
+import { paginationToSkipTake } from '../../../common/dto/paginated-result';
 import { Visit } from '../domain/entities/visit.entity';
-import { VisitRepository } from '../domain/repositories/visit.repository';
+import { VisitListFilters, VisitRepository } from '../domain/repositories/visit.repository';
 
 @Injectable()
 export class PrismaVisitRepository implements VisitRepository {
@@ -49,5 +50,22 @@ export class PrismaVisitRepository implements VisitRepository {
       },
     });
     return Visit.fromPersistence(updated);
+  }
+
+  async findAllByTenant(
+    filters: VisitListFilters,
+    page: number,
+    limit: number,
+  ): Promise<{ items: Array<Visit & { id: string }>; total: number }> {
+    const { skip, take } = paginationToSkipTake(page, limit);
+    const where = {
+      propertyId: filters.propertyId,
+      status: filters.status,
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.visit.findMany({ where, skip, take, orderBy: { startedAt: 'desc' } }),
+      this.prisma.visit.count({ where }),
+    ]);
+    return { items: rows.map((row) => Visit.fromPersistence(row)), total };
   }
 }

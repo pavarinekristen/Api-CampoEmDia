@@ -1,9 +1,9 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../../../infra/prisma/prisma.service';
 import { Tenant, TenantType } from '../../domain/entities/tenant.entity';
 import { User, UserRole } from '../../domain/entities/user.entity';
 import { USER_REPOSITORY, UserRepository } from '../../domain/repositories/user.repository';
+import { PasswordHasher } from '../../infrastructure/password-hasher.service';
 
 export interface RegisterTenantInput {
   tenantType: TenantType;
@@ -20,7 +20,6 @@ export interface RegisterTenantOutput {
 }
 
 const OWNER_ROLE: UserRole = 'PROFISSIONAL_PROPRIETARIO';
-const BCRYPT_SALT_ROUNDS = 12;
 
 /**
  * Fluxo de bootstrap: cria o Tenant (autônomo ou empresa) e o primeiro
@@ -33,6 +32,7 @@ export class RegisterTenantUseCase {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
+    private readonly passwordHasher: PasswordHasher,
   ) {}
 
   async execute(input: RegisterTenantInput): Promise<RegisterTenantOutput> {
@@ -50,7 +50,7 @@ export class RegisterTenantUseCase {
       data: { type: tenant.type, name: tenant.name, document: tenant.document ?? undefined },
     });
 
-    const passwordHash = await bcrypt.hash(input.ownerPassword, BCRYPT_SALT_ROUNDS);
+    const passwordHash = await this.passwordHasher.hash(input.ownerPassword);
     const owner = User.create({
       tenantId: createdTenant.id,
       name: input.ownerName,

@@ -14,6 +14,11 @@ export interface UserRepository {
   findByEmailAcrossTenants(email: string): Promise<(User & { id: string }) | null>;
 
   create(user: User): Promise<User & { id: string }>;
+
+  /** Tenant-scoped — roda sob o TenantContext ambiente da requisição autenticada. */
+  findById(id: string): Promise<(User & { id: string }) | null>;
+  findAllByTenant(page: number, limit: number): Promise<{ items: Array<User & { id: string }>; total: number }>;
+  update(user: User & { id: string }): Promise<User & { id: string }>;
 }
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');

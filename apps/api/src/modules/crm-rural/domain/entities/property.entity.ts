@@ -8,6 +8,7 @@ export class Property {
     readonly longitude: number | null,
     readonly activities: string | null,
     readonly frequency: string | null,
+    readonly version: number,
   ) {}
 
   static create(params: {
@@ -31,6 +32,34 @@ export class Property {
       params.longitude ?? null,
       params.activities ?? null,
       params.frequency ?? null,
+      1,
+    );
+  }
+
+  static fromPersistence(row: {
+    id: string;
+    clientId: string;
+    name: string;
+    location: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    activities: string | null;
+    frequency: string | null;
+    version: number;
+  }): Property & { id: string } {
+    return Object.assign(
+      new Property(
+        row.id,
+        row.clientId,
+        row.name,
+        row.location,
+        row.latitude,
+        row.longitude,
+        row.activities,
+        row.frequency,
+        row.version,
+      ),
+      { id: row.id },
     );
   }
 }

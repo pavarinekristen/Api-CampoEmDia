@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
 import { TaskItem } from '../domain/entities/task-item.entity';
-import { TaskRepository } from '../domain/repositories/task.repository';
+import { TaskRepository, UpdateTaskPatch } from '../domain/repositories/task.repository';
 
 @Injectable()
 export class PrismaTaskRepository implements TaskRepository {
@@ -25,25 +25,21 @@ export class PrismaTaskRepository implements TaskRepository {
         evidenceExpected: task.evidenceExpected ?? undefined,
       },
     });
-    return Object.assign(task, { id: created.id });
+    return TaskItem.fromPersistence(created);
   }
 
   async findByVisitId(visitId: string): Promise<Array<TaskItem & { id: string }>> {
     const rows = await this.prisma.taskItem.findMany({ where: { visitId }, orderBy: { createdAt: 'asc' } });
-    return rows.map((row) =>
-      Object.assign(
-        TaskItem.create({
-          clientGeneratedId: row.clientGeneratedId,
-          visitId: row.visitId,
-          description: row.description,
-          assigneeId: row.assigneeId ?? undefined,
-          dueDate: row.dueDate ?? undefined,
-          priority: row.priority,
-          requiresReturnVisit: row.requiresReturnVisit,
-          evidenceExpected: row.evidenceExpected ?? undefined,
-        }),
-        { id: row.id },
-      ),
-    );
+    return rows.map((row) => TaskItem.fromPersistence(row));
+  }
+
+  async findById(id: string): Promise<(TaskItem & { id: string }) | null> {
+    const row = await this.prisma.taskItem.findUnique({ where: { id } });
+    return row ? TaskItem.fromPersistence(row) : null;
+  }
+
+  async update(id: string, patch: UpdateTaskPatch): Promise<TaskItem & { id: string }> {
+    const updated = await this.prisma.taskItem.update({ where: { id }, data: patch });
+    return TaskItem.fromPersistence(updated);
   }
 }

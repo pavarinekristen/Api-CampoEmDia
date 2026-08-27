@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
+import { paginationToSkipTake } from '../../../common/dto/paginated-result';
 import { Property } from '../domain/entities/property.entity';
-import { PropertyRepository } from '../domain/repositories/property.repository';
+import { PropertyRepository, UpdatePropertyPatch } from '../domain/repositories/property.repository';
 
 @Injectable()
 export class PrismaPropertyRepository implements PropertyRepository {
@@ -23,41 +24,47 @@ export class PrismaPropertyRepository implements PropertyRepository {
         frequency: property.frequency ?? undefined,
       },
     });
-    return Object.assign(property, { id: created.id });
+    return Property.fromPersistence(created);
   }
 
   async findById(id: string): Promise<(Property & { id: string }) | null> {
-    const row = await this.prisma.property.findUnique({ where: { id } });
-    if (!row) return null;
-    return this.toDomain(row);
+    const row = await this.prisma.property.findFirst({ where: { id, deletedAt: null } });
+    return row ? Property.fromPersistence(row) : null;
   }
 
-  async findByClientId(clientId: string): Promise<Array<Property & { id: string }>> {
-    const rows = await this.prisma.property.findMany({ where: { clientId }, orderBy: { createdAt: 'desc' } });
-    return rows.map((row) => this.toDomain(row));
+  async findByClientIdPaginated(
+    clientId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: Array<Property & { id: string }>; total: number }> {
+    const { skip, take } = paginationToSkipTake(page, limit);
+    const where = { clientId, deletedAt: null };
+    const [rows, total] = await Promise.all([
+      this.prisma.property.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+      this.prisma.property.count({ where }),
+    ]);
+    return { items: rows.map((row) => Property.fromPersistence(row)), total };
   }
 
-  private toDomain(row: {
-    id: string;
-    clientId: string;
-    name: string;
-    location: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    activities: string | null;
-    frequency: string | null;
-  }): Property & { id: string } {
-    return Object.assign(
-      Property.create({
-        clientId: row.clientId,
-        name: row.name,
-        location: row.location ?? undefined,
-        latitude: row.latitude ?? undefined,
-        longitude: row.longitude ?? undefined,
-        activities: row.activities ?? undefined,
-        frequency: row.frequency ?? undefined,
-      }),
-      { id: row.id },
-    );
+  async update(
+    id: string,
+    patch: UpdatePropertyPatch,
+    expectedVersion?: number,
+  ): Promise<(Property & { id: string }) | 'CONFLICT'> {
+    const result = await this.prisma.property.updateMany({
+      where: { id, deletedAt: null, ...(expectedVersion !== undefined ? { version: expectedVersion } : {}) },
+      data: { ...patch, version: { increment: 1 } },
+    });
+
+    if (result.count === 0) {
+      return 'CONFLICT';
+    }
+
+    const updated = await this.prisma.property.findFirstOrThrow({ where: { id } });
+    return Property.fromPersistence(updated);
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.property.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }

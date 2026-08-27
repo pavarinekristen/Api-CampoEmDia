@@ -67,6 +67,28 @@ export class Visit {
     );
   }
 
+  /**
+   * Cancelamento — diferente de encerramento: significa que a visita não
+   * aconteceu de fato (não gera relatório). Só é possível a partir de
+   * `EM_ANDAMENTO`, mesma regra de `end()`.
+   */
+  cancel(): Visit {
+    if (this.status !== 'EM_ANDAMENTO') {
+      throw new Error(`Não é possível cancelar uma visita com status "${this.status}".`);
+    }
+    return new Visit(
+      this.id,
+      this.clientGeneratedId,
+      this.propertyId,
+      this.professionalId,
+      this.type,
+      'CANCELADA',
+      this.startedAt,
+      this.endedAt,
+      this.summary,
+    );
+  }
+
   static fromPersistence(row: {
     id: string;
     clientGeneratedId: string;

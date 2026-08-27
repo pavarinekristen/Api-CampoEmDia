@@ -18,6 +18,7 @@ describe('StartVisitUseCase — idempotência de sincronização offline', () =>
       create: jest.fn().mockImplementation(async (visit: Visit) => Object.assign(visit, { id: 'server-generated-id' })),
       findById: jest.fn(),
       save: jest.fn(),
+      findAllByTenant: jest.fn(),
     };
     return repo;
   }

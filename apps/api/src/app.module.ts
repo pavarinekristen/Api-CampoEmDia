@@ -6,6 +6,7 @@ import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { QueueModule } from './infra/queue/queue.module';
 import { StorageModule } from './infra/storage/storage.module';
+import { AuditModule } from './infra/audit/audit.module';
 import { IdentityAccessModule } from './modules/identity-access/identity-access.module';
 import { CrmRuralModule } from './modules/crm-rural/crm-rural.module';
 import { VisitsModule } from './modules/visits/visits.module';
@@ -34,6 +35,7 @@ import { SyncModule } from './modules/sync/sync.module';
     PrismaModule,
     QueueModule,
     StorageModule,
+    AuditModule,
 
     // Módulos de negócio — cada um é uma fronteira interna do monólito
     // modular (ver plano arquitetural). Comunicação entre módulos passa
