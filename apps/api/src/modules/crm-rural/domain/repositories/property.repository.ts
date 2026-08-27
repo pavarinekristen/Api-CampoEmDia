@@ -7,6 +7,7 @@ export interface UpdatePropertyPatch {
   longitude?: number;
   activities?: string;
   frequency?: string;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface PropertyRepository {

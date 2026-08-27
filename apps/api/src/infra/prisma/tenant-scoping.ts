@@ -23,6 +23,10 @@ export const TENANT_SCOPED_MODELS = new Set([
   'Report',
   'ServiceCharge',
   'AuditLog',
+  'CustomFieldDefinition',
+  'Animal',
+  'Lote',
+  'AnimalHealthEvent',
 ]);
 
 export type PrismaAction =

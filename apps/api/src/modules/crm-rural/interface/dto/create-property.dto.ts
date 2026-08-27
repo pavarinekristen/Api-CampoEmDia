@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsNumber, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreatePropertyDto {
   @IsUUID()
@@ -27,4 +27,9 @@ export class CreatePropertyDto {
   @IsOptional()
   @IsString()
   frequency?: string;
+
+  /** Valores dos campos definidos pelo tenant via POST /custom-fields (entityType=PROPERTY). */
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, unknown>;
 }

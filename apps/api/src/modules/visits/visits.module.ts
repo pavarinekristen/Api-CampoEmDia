@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 import { VisitsController } from './interface/visits.controller';
 import { StartVisitUseCase } from './application/use-cases/start-visit.use-case';
 import { AddEvidenceUseCase } from './application/use-cases/add-evidence.use-case';
@@ -17,6 +18,7 @@ import { EVIDENCE_REPOSITORY } from './domain/repositories/evidence.repository';
 import { TASK_REPOSITORY } from './domain/repositories/task.repository';
 
 @Module({
+  imports: [CustomFieldsModule],
   controllers: [VisitsController],
   providers: [
     StartVisitUseCase,

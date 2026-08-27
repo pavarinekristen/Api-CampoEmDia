@@ -22,6 +22,7 @@ export class Visit {
     readonly startedAt: Date,
     readonly endedAt: Date | null,
     readonly summary: string | null,
+    readonly customFields: Record<string, unknown> | null,
   ) {}
 
   static start(params: {
@@ -30,6 +31,7 @@ export class Visit {
     professionalId: string;
     type: VisitType;
     startedAt: Date;
+    customFields?: Record<string, unknown> | null;
   }): Visit {
     return new Visit(
       undefined,
@@ -41,6 +43,7 @@ export class Visit {
       params.startedAt,
       null,
       null,
+      params.customFields ?? null,
     );
   }
 
@@ -64,6 +67,7 @@ export class Visit {
       this.startedAt,
       params.endedAt,
       params.summary ?? this.summary,
+      this.customFields,
     );
   }
 
@@ -86,6 +90,7 @@ export class Visit {
       this.startedAt,
       this.endedAt,
       this.summary,
+      this.customFields,
     );
   }
 
@@ -99,6 +104,7 @@ export class Visit {
     startedAt: Date;
     endedAt: Date | null;
     summary: string | null;
+    customFields: unknown;
   }): Visit & { id: string } {
     return Object.assign(
       new Visit(
@@ -111,6 +117,7 @@ export class Visit {
         row.startedAt,
         row.endedAt,
         row.summary,
+        (row.customFields as Record<string, unknown>) ?? null,
       ),
       { id: row.id },
     );

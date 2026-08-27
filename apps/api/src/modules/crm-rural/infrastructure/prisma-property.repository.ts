@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
 import { paginationToSkipTake } from '../../../common/dto/paginated-result';
+import { toNullableJsonInput } from '../../../common/prisma/json-field';
 import { Property } from '../domain/entities/property.entity';
 import { PropertyRepository, UpdatePropertyPatch } from '../domain/repositories/property.repository';
 
@@ -22,6 +23,7 @@ export class PrismaPropertyRepository implements PropertyRepository {
         longitude: property.longitude ?? undefined,
         activities: property.activities ?? undefined,
         frequency: property.frequency ?? undefined,
+        customFields: toNullableJsonInput(property.customFields),
       },
     });
     return Property.fromPersistence(created);
@@ -51,9 +53,10 @@ export class PrismaPropertyRepository implements PropertyRepository {
     patch: UpdatePropertyPatch,
     expectedVersion?: number,
   ): Promise<(Property & { id: string }) | 'CONFLICT'> {
+    const { customFields, ...rest } = patch;
     const result = await this.prisma.property.updateMany({
       where: { id, deletedAt: null, ...(expectedVersion !== undefined ? { version: expectedVersion } : {}) },
-      data: { ...patch, version: { increment: 1 } },
+      data: { ...rest, customFields: toNullableJsonInput(customFields), version: { increment: 1 } },
     });
 
     if (result.count === 0) {

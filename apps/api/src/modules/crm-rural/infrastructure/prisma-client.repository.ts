@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
 import { paginationToSkipTake } from '../../../common/dto/paginated-result';
+import { toNullableJsonInput } from '../../../common/prisma/json-field';
 import { Client } from '../domain/entities/client.entity';
 import { ClientRepository, UpdateClientPatch } from '../domain/repositories/client.repository';
 
@@ -18,6 +19,7 @@ export class PrismaClientRepository implements ClientRepository {
         name: client.name,
         contact: client.contact ?? undefined,
         notes: client.notes ?? undefined,
+        customFields: toNullableJsonInput(client.customFields),
       },
     });
     return Client.fromPersistence(created);
@@ -43,9 +45,10 @@ export class PrismaClientRepository implements ClientRepository {
     patch: UpdateClientPatch,
     expectedVersion?: number,
   ): Promise<(Client & { id: string }) | 'CONFLICT'> {
+    const { customFields, ...rest } = patch;
     const result = await this.prisma.client.updateMany({
       where: { id, deletedAt: null, ...(expectedVersion !== undefined ? { version: expectedVersion } : {}) },
-      data: { ...patch, version: { increment: 1 } },
+      data: { ...rest, customFields: toNullableJsonInput(customFields), version: { increment: 1 } },
     });
 
     if (result.count === 0) {

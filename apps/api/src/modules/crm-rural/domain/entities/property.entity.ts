@@ -9,6 +9,7 @@ export class Property {
     readonly activities: string | null,
     readonly frequency: string | null,
     readonly version: number,
+    readonly customFields: Record<string, unknown> | null,
   ) {}
 
   static create(params: {
@@ -19,6 +20,7 @@ export class Property {
     longitude?: number;
     activities?: string;
     frequency?: string;
+    customFields?: Record<string, unknown> | null;
   }): Property {
     if (params.name.trim().length < 2) {
       throw new Error('Nome da propriedade é obrigatório.');
@@ -33,6 +35,7 @@ export class Property {
       params.activities ?? null,
       params.frequency ?? null,
       1,
+      params.customFields ?? null,
     );
   }
 
@@ -46,6 +49,7 @@ export class Property {
     activities: string | null;
     frequency: string | null;
     version: number;
+    customFields: unknown;
   }): Property & { id: string } {
     return Object.assign(
       new Property(
@@ -58,6 +62,7 @@ export class Property {
         row.activities,
         row.frequency,
         row.version,
+        (row.customFields as Record<string, unknown>) ?? null,
       ),
       { id: row.id },
     );

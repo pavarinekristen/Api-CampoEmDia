@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsUUID } from 'class-validator';
+import { IsDateString, IsEnum, IsObject, IsOptional, IsUUID } from 'class-validator';
 import { VisitType } from '../../domain/entities/visit.entity';
 
 const VISIT_TYPES: VisitType[] = [
@@ -25,4 +25,13 @@ export class StartVisitDto {
 
   @IsDateString()
   startedAt!: string;
+
+  /**
+   * Valores dos campos definidos pelo tenant via POST /custom-fields
+   * (entityType=VISIT). Só aceito na criação — visita é imutável fora das
+   * transições explícitas (end/cancel), sem endpoint de edição genérica.
+   */
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, unknown>;
 }

@@ -48,6 +48,10 @@ model Tenant {
   reports    Report[]
   charges    ServiceCharge[]
   auditLogs  AuditLog[]
+  customFieldDefinitions CustomFieldDefinition[]
+  animals             Animal[]
+  lotes               Lote[]
+  animalHealthEvents  AnimalHealthEvent[]
 
   @@map("tenants")
 }
@@ -66,6 +70,7 @@ model User {
 
   visitsAsProfessional Visit[]    @relation("VisitProfessional")
   tasksAssigned        TaskItem[] @relation("TaskAssignee")
+  healthEventsApplied  AnimalHealthEvent[] @relation("HealthEventAppliedBy")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -85,6 +90,7 @@ model Client {
   notes     String?
   version   Int      @default(1) // concorrência otimista em updates
   deletedAt DateTime? // soft delete — nunca apagar histórico de verdade
+  customFields Json? // campos definidos pelo tenant via CustomFieldDefinition
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -109,10 +115,13 @@ model Property {
   frequency    String?  // frequência de acompanhamento combinada
   version      Int      @default(1) // concorrência otimista em updates
   deletedAt    DateTime? // soft delete — nunca apagar histórico de verdade
+  customFields Json? // campos definidos pelo tenant via CustomFieldDefinition
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  visits Visit[]
+  visits  Visit[]
+  animals Animal[]
+  lotes   Lote[]
 
   @@index([tenantId])
   @@index([clientId])
@@ -158,10 +167,12 @@ model Visit {
   endedAt           DateTime?
   summary           String?
   version           Int         @default(1) // optimistic concurrency para sync
+  customFields      Json?       // campos definidos pelo tenant via CustomFieldDefinition — só aceito na criação
 
-  evidences Evidence[]
-  tasks     TaskItem[]
-  report    Report?
+  evidences    Evidence[]
+  tasks        TaskItem[]
+  report       Report?
+  healthEvents AnimalHealthEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -315,4 +326,159 @@ model AuditLog {
 
   @@index([tenantId, entity, entityId])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CAMPOS CUSTOMIZÁVEIS — motor genérico reaproveitado por qualquer módulo.
+// Cada tenant define seus próprios campos por tipo de cadastro; os valores
+// preenchidos ficam na coluna `customFields` (Json) do próprio registro
+// (Client/Property/Visit/Animal), validados contra estas definições antes
+// de salvar. Ver CustomFieldsValidatorService.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CustomFieldEntityType {
+  CLIENT
+  PROPERTY
+  VISIT
+  ANIMAL
+}
+
+enum CustomFieldType {
+  TEXTO
+  NUMERO
+  DATA
+  SIM_NAO
+  LISTA
+  LISTA_MULTIPLA
+}
+
+model CustomFieldDefinition {
+  id         String                @id @default(uuid())
+  tenantId   String
+  tenant     Tenant                @relation(fields: [tenantId], references: [id])
+  entityType CustomFieldEntityType
+  key        String                // slug estável, ex: "peso_ao_nascer"
+  label      String                // rótulo exibido, ex: "Peso ao nascer (kg)"
+  fieldType  CustomFieldType
+  options    Json?                 // array de strings — só para LISTA/LISTA_MULTIPLA
+  required   Boolean               @default(false)
+  order      Int                   @default(0)
+  active     Boolean               @default(true)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@unique([tenantId, entityType, key])
+  @@index([tenantId, entityType])
+  @@map("custom_field_definitions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// VETERINÁRIA — Animal é o cadastro universal mínimo; tudo o que varia por
+// especialidade/profissional vive em `customFields`, não aqui.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AnimalSex {
+  MACHO
+  FEMEA
+}
+
+enum AnimalStatus {
+  ATIVO
+  VENDIDO
+  MORTO
+  DESCARTADO
+}
+
+model Lote {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  animals Animal[]
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@map("lotes")
+}
+
+model Animal {
+  id           String       @id @default(uuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  propertyId   String
+  property     Property     @relation(fields: [propertyId], references: [id])
+  loteId       String?
+  lote         Lote?        @relation(fields: [loteId], references: [id])
+  identifier   String       // brinco/número de identificação
+  name         String?
+  species      String       // livre (bovino, equino, caprino...) — não vale travar em enum
+  breed        String?
+  sex          AnimalSex?
+  birthDate    DateTime?
+  status       AnimalStatus @default(ATIVO)
+  statusReason String?      // motivo da baixa (vendido pra quem, causa da morte, etc)
+  statusAt     DateTime?
+  customFields Json?
+  version      Int          @default(1) // concorrência otimista em updates
+  deletedAt    DateTime?    // soft delete — nunca apagar histórico de verdade
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  healthEvents AnimalHealthEvent[]
+
+  @@unique([tenantId, propertyId, identifier])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([loteId])
+  @@map("animals")
+}
+
+enum HealthEventType {
+  VACINACAO
+  MEDICAMENTO
+  EXAME
+  PROCEDIMENTO
+  REPRODUCAO
+}
+
+enum PregnancyStatus {
+  NAO_CONFIRMADA
+  CONFIRMADA
+  PERDIDA
+}
+
+model AnimalHealthEvent {
+  id                String           @id @default(uuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  animalId          String
+  animal            Animal           @relation(fields: [animalId], references: [id])
+  visitId           String?          // pode ter nascido de uma visita ou ser standalone
+  visit             Visit?           @relation(fields: [visitId], references: [id])
+  type              HealthEventType
+  description       String
+  productName       String?          // vacina/medicamento aplicado
+  doseInfo          String?
+  appliedById       String?
+  appliedBy         User?            @relation("HealthEventAppliedBy", fields: [appliedById], references: [id])
+  appliedAt         DateTime
+  withdrawalUntil   DateTime?        // carência — até quando não pode abater/vender
+  nextDueDate       DateTime?        // próxima aplicação prevista — alimenta /health-events/upcoming
+  pregnancyStatus   PregnancyStatus? // só relevante quando type = REPRODUCAO
+  expectedBirthDate DateTime?        // idem
+  notes             String?
+  customFields      Json?
+  createdAt         DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([animalId])
+  @@index([tenantId, nextDueDate])
+  @@index([tenantId, withdrawalUntil])
+  @@map("animal_health_events")
 }

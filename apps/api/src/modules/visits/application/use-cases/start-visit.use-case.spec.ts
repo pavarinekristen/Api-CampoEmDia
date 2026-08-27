@@ -1,6 +1,7 @@
 import { StartVisitUseCase } from './start-visit.use-case';
 import { VisitRepository } from '../../domain/repositories/visit.repository';
 import { Visit } from '../../domain/entities/visit.entity';
+import { CustomFieldsValidatorService } from '../../../custom-fields/application/custom-fields-validator.service';
 
 describe('StartVisitUseCase — idempotência de sincronização offline', () => {
   const CLIENT_GENERATED_ID = '11111111-1111-1111-1111-111111111111';
@@ -23,9 +24,13 @@ describe('StartVisitUseCase — idempotência de sincronização offline', () =>
     return repo;
   }
 
+  function buildCustomFieldsValidatorMock() {
+    return { validate: jest.fn().mockResolvedValue(null) } as unknown as CustomFieldsValidatorService;
+  }
+
   it('cria a visita quando o clientGeneratedId ainda não existe', async () => {
     const repo = buildRepositoryMock();
-    const useCase = new StartVisitUseCase(repo);
+    const useCase = new StartVisitUseCase(repo, buildCustomFieldsValidatorMock());
 
     const result = await useCase.execute(baseInput);
 
@@ -36,10 +41,8 @@ describe('StartVisitUseCase — idempotência de sincronização offline', () =>
   it('NÃO duplica a visita ao reenviar a mesma operação (retry de rede em campo)', async () => {
     const existing = Object.assign(Visit.start(baseInput), { id: 'already-persisted-id' });
     const repo = buildRepositoryMock(existing);
-    const useCase = new StartVisitUseCase(repo);
+    const useCase = new StartVisitUseCase(repo, buildCustomFieldsValidatorMock());
 
-    // Simula o app reenviando a mesma operação do Outbox local depois de
-    // uma queda de conexão antes de receber a confirmação do primeiro envio.
     const result = await useCase.execute(baseInput);
 
     expect(repo.create).not.toHaveBeenCalled();
@@ -47,14 +50,8 @@ describe('StartVisitUseCase — idempotência de sincronização offline', () =>
   });
 
   it('duas chamadas concorrentes com o mesmo clientGeneratedId resultam em uma única criação', async () => {
-    // Sem chamada concorrente real de banco aqui (isso é papel do teste de
-    // integração com Postgres + constraint unique), mas garante que o
-    // use-case sempre consulta antes de criar — a proteção final contra
-    // duplicidade real é a constraint `@unique` em `clientGeneratedId`
-    // no schema (ver prisma/schema.prisma), que o findByClientGeneratedId
-    // aqui espelha.
     const repo = buildRepositoryMock();
-    const useCase = new StartVisitUseCase(repo);
+    const useCase = new StartVisitUseCase(repo, buildCustomFieldsValidatorMock());
 
     await useCase.execute(baseInput);
 

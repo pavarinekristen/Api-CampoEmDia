@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateClientDto {
   @IsString()
@@ -12,4 +12,9 @@ export class CreateClientDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Valores dos campos definidos pelo tenant via POST /custom-fields (entityType=CLIENT). */
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, unknown>;
 }

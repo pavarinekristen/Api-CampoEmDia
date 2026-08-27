@@ -14,6 +14,8 @@ import { MediaModule } from './modules/media/media.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module';
+import { VeterinaryModule } from './modules/veterinary/veterinary.module';
 
 @Module({
   imports: [
@@ -42,8 +44,10 @@ import { SyncModule } from './modules/sync/sync.module';
     // apenas pelas suas camadas `application`/`interface` públicas, nunca
     // por acesso direto a `domain`/`infrastructure` de outro módulo.
     IdentityAccessModule,
+    CustomFieldsModule,
     CrmRuralModule,
     VisitsModule,
+    VeterinaryModule,
     MediaModule,
     ReportsModule,
     BillingModule,

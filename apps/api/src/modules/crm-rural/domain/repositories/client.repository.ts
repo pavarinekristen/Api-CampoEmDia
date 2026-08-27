@@ -4,6 +4,7 @@ export interface UpdateClientPatch {
   name?: string;
   contact?: string;
   notes?: string;
+  customFields?: Record<string, unknown> | null;
 }
 
 export interface ClientRepository {

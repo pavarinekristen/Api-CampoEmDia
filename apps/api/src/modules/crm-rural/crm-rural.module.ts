@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 import { ClientsController } from './interface/clients.controller';
 import { PropertiesController } from './interface/properties.controller';
 import { CreateClientUseCase } from './application/use-cases/create-client.use-case';
@@ -16,6 +17,7 @@ import { CLIENT_REPOSITORY } from './domain/repositories/client.repository';
 import { PROPERTY_REPOSITORY } from './domain/repositories/property.repository';
 
 @Module({
+  imports: [CustomFieldsModule],
   controllers: [ClientsController, PropertiesController],
   providers: [
     CreateClientUseCase,

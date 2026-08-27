@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infra/prisma/prisma.service';
 import { tenantContext } from '../../../common/context/tenant-context';
 import { paginationToSkipTake } from '../../../common/dto/paginated-result';
+import { toNullableJsonInput } from '../../../common/prisma/json-field';
 import { Visit } from '../domain/entities/visit.entity';
 import { VisitListFilters, VisitRepository } from '../domain/repositories/visit.repository';
 
@@ -21,6 +22,7 @@ export class PrismaVisitRepository implements VisitRepository {
         type: visit.type,
         status: visit.status,
         startedAt: visit.startedAt,
+        customFields: toNullableJsonInput(visit.customFields),
       },
     });
     return Visit.fromPersistence(created);

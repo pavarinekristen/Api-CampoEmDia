@@ -5,6 +5,7 @@ import {
   UpdatePropertyPatch,
 } from '../../domain/repositories/property.repository';
 import { AuditLogService } from '../../../../infra/audit/audit-log.service';
+import { CustomFieldsValidatorService } from '../../../custom-fields/application/custom-fields-validator.service';
 
 export interface UpdatePropertyInput extends UpdatePropertyPatch {
   propertyId: string;
@@ -16,6 +17,7 @@ export class UpdatePropertyUseCase {
   constructor(
     @Inject(PROPERTY_REPOSITORY) private readonly properties: PropertyRepository,
     private readonly auditLog: AuditLogService,
+    private readonly customFieldsValidator: CustomFieldsValidatorService,
   ) {}
 
   async execute(input: UpdatePropertyInput) {
@@ -25,6 +27,9 @@ export class UpdatePropertyUseCase {
     }
 
     const { propertyId, version, ...patch } = input;
+    if (patch.customFields !== undefined) {
+      patch.customFields = await this.customFieldsValidator.validate('PROPERTY', patch.customFields);
+    }
     const result = await this.properties.update(propertyId, patch, version);
     if (result === 'CONFLICT') {
       throw new ConflictException('A propriedade foi alterada por outra sessão — recarregue e tente novamente.');
