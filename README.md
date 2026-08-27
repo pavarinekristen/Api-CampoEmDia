@@ -82,7 +82,3 @@ GET /reports/by-visit/:id    → consulta o status do relatório / link de downl
 - **Mídia**: upload direto ao object storage via URL pré-assinada (`apps/api/src/infra/storage/`) — a API nunca recebe o binário.
 - **PDF e transcrição de áudio**: sempre assíncronos, via fila BullMQ, processados em `apps/workers` — nunca no request/response da API.
 - **Escopo desta versão do sync**: `visit`, `evidence` e `task` (que carregam `clientGeneratedId`). `property`/`client` ficam fora do sync automático nesta versão — tipicamente cadastrados com conectividade — e retornam `REJECTED` explicitamente se enviados via `/sync/push`.
-
-## Próximos passos sugeridos
-
-Ver a seção "Próximos Passos Recomendados" do plano arquitetural — validar o fluxo com usuários reais antes de expandir para os módulos especializados (Agronomia, Zootecnia, Veterinária).
